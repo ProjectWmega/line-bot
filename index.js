@@ -1,6 +1,7 @@
 var bot = require('line-bot-sdk');
+var channelInfo = require('./channel_info');
 var client = bot.client({
-  channelID: '<your channel ID>',
-  channelSecret: '<your channel secret>',
-  channelToken: '<your channel token>'
+  channelID: channelInfo.id,
+  channelSecret: channelInfo.secret,
+  channelToken: channelInfo.token
 });
