@@ -4,9 +4,8 @@
   "description": "Order with LINE message",
   "main": "index.js",
   "dependencies": {
-    "body-parser": "^1.15.2",
     "express": "^4.14.0",
-    "line-bot-sdk": "^0.1.4"
+	"linebot": "^1.2.1"
   },
   "repository": "https://github.com/osk2/LunchBox",
   "devDependencies": {},
