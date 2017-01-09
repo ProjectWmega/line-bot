@@ -1,9 +1,23 @@
-#LunchBox 便當盒
+#LunchBox
 
-###這麼潮，用LINE訂便當
+Order lunch with LINE!
 
-[`channel_info.js`](channel_info.js) 裡面記得換成你的 LINE Channel Info
+##Installation
 
-也要記得改 [`ssl_info.js`](ssl_info.js) 的路徑
+Change your LINE Channel infomation in [`channel_info.js`](channel_info.js) 
 
-沒有 SSL 的話去[SSL For Free](https://www.sslforfree.com)申請個免費的就很好使了
+and SSL path in [`ssl_info.js`](ssl_info.js) also
+
+If you don't have SSL yet, create one at [SSL For Free](https://www.sslforfree.com) for free
+
+After all set, run:
+
+`$ npm install`
+
+##Starting
+
+`$ node .`
+
+##Test
+
+`$ npm test`
