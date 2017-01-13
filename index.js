@@ -2,8 +2,8 @@ var https = require('https');
 var fs = require('fs');
 var express = require('express');
 var linebot = require('linebot');
-var channelInfo = require('./channel_info');
-var sslInfo = require('./ssl_info');
+var channelInfo = require('./config').channel;
+var sslInfo = require('./config').ssl;
 var bot = linebot({
     channelId: channelInfo.id,
     channelSecret: channelInfo.secret,
