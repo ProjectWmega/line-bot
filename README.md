@@ -4,11 +4,9 @@ Order lunch with LINE!
 
 ##Installation
 
-Change your LINE Channel infomation in [`channel_info.js`](channel_info.js) 
+Fill your LINE Channel infomation and SSL path in [`config.js`](config.js)
 
-and SSL path in [`ssl_info.js`](ssl_info.js) also
-
-If you don't have SSL yet, create one at [SSL For Free](https://www.sslforfree.com) for free
+If you don't have SSL yet, create one at [SSL For Free](https://www.sslforfree.com)
 
 After all set, run:
 
@@ -17,7 +15,3 @@ After all set, run:
 ##Starting
 
 `$ node .`
-
-##Test
-
-`$ npm test`
