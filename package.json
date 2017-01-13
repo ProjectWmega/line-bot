@@ -1,17 +1,19 @@
 {
-  "name": "lunckbox",
+  "name": "lunchbox",
   "version": "0.0.1",
-  "description": "Order with LINE message",
+  "description": "Get your lunch with LINE message!",
   "main": "index.js",
+  "scripts": {
+    "start": "node ."
+  },
   "dependencies": {
     "express": "^4.14.0",
-	"linebot": "^1.2.1"
+    "linebot": "^1.2.1",
+    "lodash": "^4.17.4",
+    "unirest": "^0.5.1"
   },
   "repository": "https://github.com/osk2/LunchBox",
   "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "author": "osk2",
   "license": "ISC"
 }
