@@ -75,11 +75,32 @@ var replyToEvent = function (event, pushMessage) {
 
   event.reply(pushMessage).then(function (data) {
     event.source.profile().then(function (profile) {
-      console.log(chalk.blue('INFO') + ' Replied message from', profile.displayName);
+      consoleLog('info', ' Replied message from ' + profile.displayName);
     });
   }).catch(function (error) {
-    console.error(chalk.red('ERROR ⁉️ ') + ' Reply failed ', error);
+    consoleLog('error', ' Reply failed ' + error);
   });
+}
+
+var consoleLog = function (type, message) {
+  var log = '';
+  switch (type) {
+  case 'info':
+    log += chalk.blue('INFO') + message;
+    console.log(log)
+    break;
+  case 'error':
+    log =+ chalk.red('ERROR ⁉️ ') + message;
+    console.error(log);
+    break;
+  case 'success':
+    log = chalk.green('YEAH🤘 ') + message;
+    console.log(log);
+    break;
+  default:
+    console.log(log);
+    break;
+  }
 }
 
 app.use(function (req, res, next) {
@@ -92,8 +113,8 @@ app.post('/', linebotParser);
 
 app.get('/god', function (req, res) {
   var db = new sqlite3.Database('db.sqlite');
-  db.get('SELECT * from lineid', function (err, row) {
-    res.json(row);
+  db.all('SELECT * from lineid', function (err, rows) {
+    res.json(rows);
   });
 });
 
@@ -103,9 +124,9 @@ app.get('/push/:id/:message', cors(), function (req, res) {
       bot.push(lineId, req.params.message);
       bot.getUserProfile(lineId).then(function (profile) {
         res.json({'result': 'Pushed message to ' + profile.displayName, 'request': {'id': req.params.id, 'message': req.params.message}});
-        console.log(chalk.blue('INFO') + ' Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
+        consoleLog('info', ' Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
       }).catch(function (error) {
-        console.error(chalk.red('ERROR ⁉️ ') + ' Push failed ', error);
+        consoleLog('error', ' Push failed ' + error)
       });
     } else {
       res.json({'result': 'Failed, ID not found', 'request': {'id': req.params.id, 'message': req.params.message}});
@@ -135,6 +156,15 @@ bot.on('message', function (event) {
       replyToEvent(event, ['👇你的使用者ID', shortId]);
     });
     break;
+  case undefined:
+    // if message isn't text
+    replyToEvent(event, 
+    {
+        type: 'sticker',
+        packageId: '1',
+        stickerId: '8'
+    });
+    break;
   default:
     unirest.get('http://more.handlino.com/sentences.json')
       .query('limit=1,30')
@@ -145,6 +175,6 @@ bot.on('message', function (event) {
   }
 });
 
-https.createServer(sslOptions, app).listen(app.get('port'), function(){
-  console.log(chalk.green('YEAH🤘 ') + ' Listening on port ' + app.get('port'));
+https.createServer(sslOptions, app).listen(app.get('port'), function() {
+  consoleLog('success', ' Listening on port ' + app.get('port'));
 });
