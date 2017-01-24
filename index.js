@@ -4,6 +4,7 @@ var _ = require('lodash');
 var sqlite3 = require('sqlite3').verbose();
 var randomString = require("randomstring");
 var express = require('express');
+var cors = require('cors')
 var unirest = require('unirest');
 var linebot = require('linebot');
 var chalk = require('chalk');
@@ -96,7 +97,7 @@ app.get('/god', function (req, res) {
   });
 });
 
-app.get('/push/:id/:message', function (req, res) {
+app.get('/push/:id/:message', cors(), function (req, res) {
   getLineId(req.params.id, function (lineId) {
     if (lineId) {
       bot.push(lineId, req.params.message);
