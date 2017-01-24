@@ -89,6 +89,13 @@ app.use(function (req, res, next) {
 app.set('port', (process.env.PORT || 5566));
 app.post('/', linebotParser);
 
+app.get('/god', function (req, res) {
+  var db = new sqlite3.Database('db.sqlite');
+  db.get('SELECT * from lineid', function (err, row) {
+    res.json(row);
+  });
+});
+
 app.get('/push/:id/:message', function (req, res) {
   getLineId(req.params.id, function (lineId) {
     if (lineId) {
