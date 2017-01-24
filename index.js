@@ -56,7 +56,7 @@ var getShortId = function (lineId, callback) {
     db.get('SELECT short_id from lineid WHERE line_id = ?', [lineId], function (err, row) {
       if (row === undefined || err) {
         db.run('INSERT OR IGNORE INTO lineid (line_id, short_id)\
-                  VALUES (?, ?)', [event.source.userId, rdstr]);
+                  VALUES (?, ?)', [lineId, rdstr]);
         output = rdstr;
       } else {
         output = row.short_id;
