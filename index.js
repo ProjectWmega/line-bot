@@ -81,6 +81,11 @@ var replyToEvent = function (event, pushMessage) {
   });
 }
 
+app.use(function (req, res, next) {
+  res.setHeader('X-Powered-By', 'electricity');
+  next();
+});
+
 app.set('port', (process.env.PORT || 5566));
 app.post('/', linebotParser);
 
