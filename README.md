@@ -1,10 +1,10 @@
-#LunchBox
+#LINE Server for Blockly
 
-Order lunch with LINE!
+Have fun with LINE!
 
 ##Installation
 
-Fill your LINE Channel infomation and SSL path in [`config.js`](config.js)
+Fill LINE Channel infomation and SSL path in [`config.js`](config.js)
 
 If you don't have SSL yet, create one at [SSL For Free](https://www.sslforfree.com)
 
