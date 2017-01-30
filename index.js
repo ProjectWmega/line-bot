@@ -75,10 +75,10 @@ var replyToEvent = function (event, pushMessage) {
 
   event.reply(pushMessage).then(function (data) {
     event.source.profile().then(function (profile) {
-      consoleLog('info', ' Replied message from ' + profile.displayName);
+      consoleLog('info', 'Replied message from ' + profile.displayName);
     });
   }).catch(function (error) {
-    consoleLog('error', ' Reply failed ' + error);
+    consoleLog('error', 'Reply failed ' + error);
   });
 }
 
@@ -86,15 +86,15 @@ var consoleLog = function (type, message) {
   var log = '';
   switch (type) {
   case 'info':
-    log += chalk.blue('INFO') + message;
+    log += chalk.blue('INFO ') + ' ' + message;
     console.log(log)
     break;
   case 'error':
-    log =+ chalk.red('ERROR ⁉️ ') + message;
+    log =+ chalk.red('ERROR ⁉️ ') + ' '  + message;
     console.error(log);
     break;
   case 'success':
-    log = chalk.green('YEAH🤘 ') + message;
+    log = chalk.green('YEAH🤘 ') + ' '  + message;
     console.log(log);
     break;
   default:
@@ -115,6 +115,7 @@ app.get('/god', function (req, res) {
   var db = new sqlite3.Database('db.sqlite');
   db.all('SELECT * from lineid', function (err, rows) {
     res.json(rows);
+    consoleLog('info', 'OH MY GOD');
   });
 });
 
@@ -124,9 +125,9 @@ app.get('/push/:id/:message', cors(), function (req, res) {
       bot.push(lineId, req.params.message);
       bot.getUserProfile(lineId).then(function (profile) {
         res.json({'result': 'Pushed message to ' + profile.displayName, 'request': {'id': req.params.id, 'message': req.params.message}});
-        consoleLog('info', ' Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
+        consoleLog('info', 'Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
       }).catch(function (error) {
-        consoleLog('error', ' Push failed ' + error)
+        consoleLog('error', 'Push failed ' + error)
       });
     } else {
       res.json({'result': 'Failed, ID not found', 'request': {'id': req.params.id, 'message': req.params.message}});
@@ -147,7 +148,7 @@ bot.on('join', function (event) {
 });
 
 bot.on('message', function (event) {
-  var message = event.message.text;
+  var message = event.message.text.split(' ');
 
   switch (message) {
   case 'id':
@@ -176,5 +177,5 @@ bot.on('message', function (event) {
 });
 
 https.createServer(sslOptions, app).listen(app.get('port'), function() {
-  consoleLog('success', ' Listening on port ' + app.get('port'));
+  consoleLog('success', 'Listening on port ' + app.get('port'));
 });
