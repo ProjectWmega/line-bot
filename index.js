@@ -71,6 +71,13 @@ var getShortId = function (lineId, callback) {
   });
 }
 
+var getAirData = function (callback) {
+  unirest.get('http://opendata2.epa.gov.tw/AQX.json')
+    .end(function (res) {
+      callback(res.body);
+    });
+}
+
 var replyToEvent = function (event, pushMessage) {
 
   event.reply(pushMessage).then(function (data) {
@@ -150,12 +157,47 @@ bot.on('join', function (event) {
 bot.on('message', function (event) {
   var message = event.message.text.split(' ');
 
-  switch (message) {
+  switch (message[0]) {
   case 'id':
   case 'ID':
     getShortId(event.source.userId, function (shortId) {
       replyToEvent(event, ['👇你的使用者ID', shortId]);
     });
+    break;
+  case 'air':
+  case '空氣':
+    var output = '';
+
+    if (message[1]) {
+      getAirData(function (airData) {
+        _.forEach(airData, function (site) {
+          if (site.County === message[1]) {
+            output += site['County'] + site['SiteName'] + '\n';
+            if (site['WindDirec'] !== '') {
+              output += ' - 風向：' + site['WindDirec'] + ' °\n';
+            } else {
+              output += ' - 風向：N/A\n';
+            }
+
+            if (site['WindSpeed'] !== '') {
+              output += ' - 風速：' + site['WindSpeed'] + ' m/s\n';
+            } else {
+              output += ' - 風速：N/A\n';
+            }
+
+            if (site['PM2.5'] !== '') {
+              output += ' - PM2.5：' + site['PM2.5'] + ' μg/m³\n\n';
+            } else {
+              output += ' - PM2.5：N/A\n\n';
+            }
+          }
+        });
+        if (output === '') {
+          output = '哎呀！沒有這個城市\n\n小提醒：\n如果要查詢的是"台南"，請輸入正體全名"臺南市"';
+        }
+        replyToEvent(event, output);
+      });
+    }
     break;
   case undefined:
     // if message isn't text
