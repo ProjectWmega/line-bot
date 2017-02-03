@@ -24,11 +24,17 @@ var sslOptions = {
 var app = express();
 var linebotParser = bot.parser();
 
-var getLineId = function (shortId, callback) {
+var getLineId = function (id, callback) {
+
+  if (/U[a-z0-9]{32}/.test(id)) {
+    // Return if param is already LINE ID
+    return id;
+  }
+
   var output;
   var db = new sqlite3.Database('db.sqlite');
   db.serialize(function() {
-    db.get('SELECT line_id from lineid WHERE short_id = ?', [shortId], function (err, row) {
+    db.get('SELECT line_id from lineid WHERE short_id = ?', [id], function (err, row) {
       if (row !== undefined && !err) {
         output = row.line_id;
       } else {
@@ -78,14 +84,99 @@ var getAirData = function (callback) {
     });
 }
 
+var airInfoMessageBuilder = function (data) {
+  var output = '';
+  output += data['County'] + data['SiteName'] + '\n';
+  output += data['PublishTime'] + ' 發布\n\n';
+
+  /* 
+    List of keys
+
+    測站名稱       SiteName
+    縣市           County
+    空氣污染指標   PSI
+    指標污染物     MajorPollutant
+    狀態           Status
+    二氧化硫濃度   SO2
+    一氧化碳濃度   CO
+    臭氧濃度       O3
+    懸浮微粒濃度   PM10
+    細懸浮微粒濃度 PM2.5
+    二氧化氮濃度   NO2
+    風速           WindSpeed
+    風向           WindDirec
+    細懸浮微粒指標 FPMI
+    氮氧化物       NOx
+    一氧化氮       NO
+    發布時間       PublishTime
+
+    Ref: http://opendata.epa.gov.tw/Data/Details/AQX/?show=all
+  */
+
+  if (data['MajorPollutant'] !== '') {
+    output += '- 指標污染物：' + data['MajorPollutant'] + '\n';
+  }
+
+  if (data['Status'] !== '') {
+    output += '- 空氣品質指標：' + data['Status'] + '\n';
+  }
+
+  if (data['PM2.5'] !== '') {
+    output += '- PM2.5：' + data['PM2.5'] + ' μg/m³';
+  } else {
+    output += '- PM2.5：N/A';
+  }
+  return output;
+}
+
+var airListMessageBuilder = function (data, offset) {
+  var output = {
+    'type': 'template',
+    'altText': '',
+    'template': {
+        'type': 'buttons',
+        'text': '選擇測站',
+        'actions': []
+    }
+  };
+  var count = offset + 3;
+
+  if (data.length === 0) {
+    output = '哎呀！沒有這個城市\n\n小提醒：\n如果要查詢"台南"，請輸入正體全名"臺南市"';
+    return output;
+  }
+
+  if (data.length - offset <= 3) {
+    count = data.length;
+  }
+
+  output.altText += '有下列測站：\n\n';
+  _.each(data, function (site) {
+    output.altText += site.County + ' ' + site.SiteName + '\n';
+  });
+
+  for (offset; offset < count; offset++) {
+    var item = {};
+    item.type = 'postback';
+    item.label = data[offset].County + data[offset].SiteName;
+    item.data = '{"action":"getAirData","location":"' + data[offset].County + '|' + data[offset].SiteName + '"}';
+    output.template.actions.push(item);
+  }
+  if (count < data.length) {
+    output.template.actions.push({'type': 'postback', 'label': '其他測站...', 'data': '{"action":"nextSet", "offset":' + offset + ', "county":"' + data[0].County + '"}'});
+  }
+  return output;
+}
+
 var replyToEvent = function (event, pushMessage) {
 
   event.reply(pushMessage).then(function (data) {
     event.source.profile().then(function (profile) {
       consoleLog('info', 'Replied message from ' + profile.displayName);
+      consoleLog('info', 'Return data: ', data);
     });
   }).catch(function (error) {
-    consoleLog('error', 'Reply failed ' + error);
+    consoleLog('error', 'Reply failed: ' + error);
   });
 }
 
@@ -126,6 +217,16 @@ app.get('/god', function (req, res) {
   });
 });
 
+app.get('/profile/:id', cors(), function (req, res) {
+  var paramId = req.params.id;
+  getLineId(paramId, function (lineId) {
+    // Both LINE ID or short ID are ok
+    bot.getUserProfile(lineId).then(function (profile) {
+      res.json(profile);
+    });
+  });
+});
+
 app.get('/push/:id/:message', cors(), function (req, res) {
   getLineId(req.params.id, function (lineId) {
     if (lineId) {
@@ -142,6 +243,34 @@ app.get('/push/:id/:message', cors(), function (req, res) {
   });
 });
 
+bot.on('postback', function (event) {
+  var data = JSON.parse(event.postback.data);
+  switch(data.action) {
+  case 'nextSet':
+    var offset = data.offset;
+    var county = data.county;
+    getAirData(function (airData) {
+      var filteredData = [];
+      filteredData = _.remove(airData, function (o) {return o.County === county});
+      replyToEvent(event, airListMessageBuilder(filteredData, offset));
+    });
+    break;
+
+  case 'getAirData':
+    var location = data.location.split('|');
+    var filteredData = [];
+    var output = [];
+    getAirData(function (airData) {
+      filteredData = _.filter(airData, _.matches({'County': location[0], 'SiteName': location[1]}));
+      _.each(filteredData, function (site) {
+        output.push(airInfoMessageBuilder(site));
+      });
+      replyToEvent(event, output);
+    });
+    break;
+  }
+});
+
 bot.on('follow', function (event) {
   getShortId(event.source.userId, function (shortId) {
     replyToEvent(event, ['👇你的使用者ID', shortId]);
@@ -155,60 +284,63 @@ bot.on('join', function (event) {
 });
 
 bot.on('message', function (event) {
-  var message = event.message.text.split(' ');
+  var message = '';
+
+  if (event.message.text === undefined) {
+    // if message isn't text
+    var strings = ['你在幹嘛', '這是什麼', '這我不敢看', '！！！！！', '我年紀還小看不懂']
+    replyToEvent(event,
+    [{
+        type: 'sticker',
+        packageId: '1',
+        stickerId: '8'
+    }, _.sample(strings)]);
+    return ;
+  } else {
+    message = event.message.text.split(' ');
+  }
 
   switch (message[0]) {
   case 'id':
   case 'ID':
+    // Show short ID
     getShortId(event.source.userId, function (shortId) {
       replyToEvent(event, ['👇你的使用者ID', shortId]);
     });
     break;
   case 'air':
   case '空氣':
-    var output = '';
 
-    if (message[1]) {
+    if (message[2]) {
+      // If SiteName is specified, show air info.
+      var output = [];
+      var filteredData = [];
       getAirData(function (airData) {
-        _.forEach(airData, function (site) {
-          if (site.County === message[1]) {
-            output += site['County'] + site['SiteName'] + '\n';
-            if (site['WindDirec'] !== '') {
-              output += ' - 風向：' + site['WindDirec'] + ' °\n';
-            } else {
-              output += ' - 風向：N/A\n';
-            }
-
-            if (site['WindSpeed'] !== '') {
-              output += ' - 風速：' + site['WindSpeed'] + ' m/s\n';
-            } else {
-              output += ' - 風速：N/A\n';
-            }
-
-            if (site['PM2.5'] !== '') {
-              output += ' - PM2.5：' + site['PM2.5'] + ' μg/m³\n\n';
-            } else {
-              output += ' - PM2.5：N/A\n\n';
-            }
-          }
+        filteredData = _.filter(airData, _.matches({'County': message[1], 'SiteName': message[2]}));
+        _.each(filteredData, function (site) {
+          output.push(airInfoMessageBuilder(site));
         });
-        if (output === '') {
-          output = '哎呀！沒有這個城市\n\n小提醒：\n如果要查詢的是"台南"，請輸入正體全名"臺南市"';
-        }
         replyToEvent(event, output);
       });
+      break;
     }
+
+    if (message[1]) {
+      // If only County specified, then show site list
+      getAirData(function (airData) {
+        var filteredData = [];
+
+        filteredData = _.remove(airData, function (o) {return o.County === message[1]});
+        replyToEvent(event, airListMessageBuilder(filteredData, 0));
+      });
+    } else {
+      replyToEvent(event, '輸入"空氣 <城市名>"查詢空氣品質\n如："空氣 臺南市"');
+    }
+
     break;
-  case undefined:
-    // if message isn't text
-    replyToEvent(event, 
-    {
-        type: 'sticker',
-        packageId: '1',
-        stickerId: '8'
-    });
-    break;
+
   default:
+    // Response with bullshit
     unirest.get('http://more.handlino.com/sentences.json')
       .query('limit=1,30')
       .end(function (res) {
