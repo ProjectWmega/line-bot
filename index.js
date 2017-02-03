@@ -3,7 +3,7 @@ var fs = require('fs');
 var _ = require('lodash');
 var sqlite3 = require('sqlite3').verbose();
 var randomString = require("randomstring");
-var express = require('express');
+var app = require('express')();
 var cors = require('cors')
 var unirest = require('unirest');
 var linebot = require('linebot');
@@ -21,8 +21,8 @@ var sslOptions = {
   key: fs.readFileSync(sslInfo.key),
   cert: fs.readFileSync(sslInfo.cert)
 };
-var app = express();
 var linebotParser = bot.parser();
+var subscribeList = [];
 
 var getLineId = function (id, callback) {
 
@@ -207,22 +207,26 @@ app.use(function (req, res, next) {
 });
 
 app.set('port', (process.env.PORT || 5566));
+app.set('json spaces', 2);
 app.post('/', linebotParser);
 
 app.get('/god', function (req, res) {
   var db = new sqlite3.Database('db.sqlite');
+  var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   db.all('SELECT * from lineid', function (err, rows) {
     res.json(rows);
-    consoleLog('info', 'OH MY GOD');
+    consoleLog('info', '😱  GOD accessed from ' + ip);
   });
 });
 
 app.get('/profile/:id', cors(), function (req, res) {
   var paramId = req.params.id;
+  var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   getLineId(paramId, function (lineId) {
     // Both LINE ID or short ID are ok
     bot.getUserProfile(lineId).then(function (profile) {
       res.json(profile);
+      consoleLog('info', 'Query profile. Remote: ' + ip);
     });
   });
 });
@@ -235,7 +239,7 @@ app.get('/push/:id/:message', cors(), function (req, res) {
         res.json({'result': 'Pushed message to ' + profile.displayName, 'request': {'id': req.params.id, 'message': req.params.message}});
         consoleLog('info', 'Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
       }).catch(function (error) {
-        consoleLog('error', 'Push failed ' + error)
+        consoleLog('error', 'Push failed ' + error);
       });
     } else {
       res.json({'result': 'Failed, ID not found', 'request': {'id': req.params.id, 'message': req.params.message}});
@@ -285,6 +289,7 @@ bot.on('join', function (event) {
 
 bot.on('message', function (event) {
   var message = '';
+  var matchedSubscribe = [];
 
   if (event.message.text === undefined) {
     // if message isn't text
@@ -299,6 +304,16 @@ bot.on('message', function (event) {
   } else {
     message = event.message.text.split(' ');
   }
+
+  getShortId(event.source.userId, function (shortId) {
+    matchedSubscribe = _.filter(subscribeList, _.matches({'line': shortId, 'trigger': event.message.text}));
+
+    if (matchedSubscribe.length >= 1) {
+      _.each(matchedSubscribe, function (match) {
+        io.to(match.socket).emit('message');
+      });
+    }
+  });
 
   switch (message[0]) {
   case 'id':
@@ -350,6 +365,24 @@ bot.on('message', function (event) {
   }
 });
 
-https.createServer(sslOptions, app).listen(app.get('port'), function() {
+var server = https.createServer(sslOptions, app).listen(app.get('port'), function() {
   consoleLog('success', 'Listening on port ' + app.get('port'));
+});
+var io = require('socket.io')(server);
+
+io.on('connection', function (socket) {
+  // socket.emit('subscribe', { hello: 'world' });
+  socket.on('subscribe', function (data) {
+    var subscribe = {'socket': socket.id, 'line': data.from, 'trigger': data.trigger};
+    subscribeList.push(subscribe);
+    consoleLog('info', 'Socket ' + socket.id + ' subscribed.');
+  });
+
+  socket.on('disconnect', function() {
+    _.remove(subscribeList, function (o) {
+      return o.socket === socket.id;
+    });
+    consoleLog('info', 'Socket ' + socket.id + ' unsubscribed.');
+  });
+
 });
