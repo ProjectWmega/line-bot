@@ -27,7 +27,7 @@ var muteList = [];
 
 var getLineId = function (id, callback) {
 
-  if (/U[a-z0-9]{32}/.test(id)) {
+  if (/^[UR][a-z0-9]{32}$/.test(id)) {
     // Return if param is already LINE ID
     return id;
   }
@@ -293,7 +293,7 @@ bot.on('message', function (event) {
   var sourceType = source.type;
   var sourceId = '';
   var sourceMessage = event.message.text;
-  var message = '';
+  var splitMessage = '';
   var matchedSubscribe = [];
 
   sourceId = sourceType === 'room' ? source.roomId : source.userId;
@@ -312,7 +312,7 @@ bot.on('message', function (event) {
     }, _.sample(strings)]);
     return ;
   } else {
-    message = sourceMessage.split(' ');
+    splitMessage = sourceMessage.split(' ');
   }
 
   getShortId(sourceId, function (shortId) {
@@ -325,23 +325,25 @@ bot.on('message', function (event) {
     }
   });
 
-  switch (message[0]) {
+  switch (splitMessage[0]) {
   case 'id':
   case 'ID':
+    var type = sourceType === 'room' ? '群組' : '使用者';
+    var output = '👇你的' + type + 'ID';
     // Show short ID
     getShortId(sourceId, function (shortId) {
-      replyToEvent(event, ['👇你的使用者ID', shortId]);
+      replyToEvent(event, [output, shortId]);
     });
     break;
   case 'air':
   case '空氣':
 
-    if (message[2]) {
+    if (splitMessage[2]) {
       // If SiteName is specified, show air info.
       var output = [];
       var filteredData = [];
       getAirData(function (airData) {
-        filteredData = _.filter(airData, _.matches({'County': message[1], 'SiteName': message[2]}));
+        filteredData = _.filter(airData, _.matches({'County': splitMessage[1], 'SiteName': splitMessage[2]}));
         _.each(filteredData, function (site) {
           output.push(airInfoMessageBuilder(site));
         });
@@ -350,12 +352,12 @@ bot.on('message', function (event) {
       break;
     }
 
-    if (message[1]) {
+    if (splitMessage[1]) {
       // If only County specified, then show site list
       getAirData(function (airData) {
         var filteredData = [];
 
-        filteredData = _.remove(airData, function (o) {return o.County === message[1]});
+        filteredData = _.remove(airData, function (o) {return o.County === splitMessage[1]});
         replyToEvent(event, airListMessageBuilder(filteredData, 0));
       });
     } else {
