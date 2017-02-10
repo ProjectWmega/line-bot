@@ -1,4 +1,4 @@
-#LINE Server for Blockly
+#Weather Bot
 
 Have fun with LINE!
 

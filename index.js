@@ -207,7 +207,7 @@ app.use(function (req, res, next) {
   next();
 });
 
-app.set('port', (process.env.PORT || 5566));
+app.set('port', (process.env.PORT || 5567));
 app.set('json spaces', 2);
 app.post('/', linebotParser);
 
@@ -277,14 +277,18 @@ bot.on('postback', function (event) {
 });
 
 bot.on('follow', function (event) {
-  getShortId(event.source.userId, function (shortId) {
-    replyToEvent(event, ['👇你的使用者ID', shortId]);
+  var type = event.source.type === 'room' ? '群組' : '使用者';
+  // Show short ID
+  getShortId(sourceId, function (shortId) {
+    replyToEvent(event, ['👇你的' + type + 'ID', shortId]);
   });
 });
 
 bot.on('join', function (event) {
-  getShortId(event.source.userId, function (shortId) {
-    replyToEvent(event, ['👇你的使用者ID', shortId]);
+  var type = event.source.type === 'room' ? '群組' : '使用者';
+  // Show short ID
+  getShortId(sourceId, function (shortId) {
+    replyToEvent(event, ['👇你的' + type + 'ID', shortId]);
   });
 });
 
@@ -329,10 +333,9 @@ bot.on('message', function (event) {
   case 'id':
   case 'ID':
     var type = sourceType === 'room' ? '群組' : '使用者';
-    var output = '👇你的' + type + 'ID';
     // Show short ID
     getShortId(sourceId, function (shortId) {
-      replyToEvent(event, [output, shortId]);
+      replyToEvent(event, ['👇你的' + type + 'ID', shortId]);
     });
     break;
   case 'air':
@@ -361,7 +364,7 @@ bot.on('message', function (event) {
         replyToEvent(event, airListMessageBuilder(filteredData, 0));
       });
     } else {
-      replyToEvent(event, '輸入"空氣 <城市名>"查詢空氣品質\n如："空氣 臺南市"');
+      replyToEvent(event, '輸入"空氣 <城市名>"查詢空氣品質\n如： 空氣 臺南市');
     }
 
     break;
@@ -390,20 +393,4 @@ bot.on('message', function (event) {
 var server = https.createServer(sslOptions, app).listen(app.get('port'), function() {
   consoleLog('success', 'Listening on port ' + app.get('port'));
 });
-var io = require('socket.io')(server);
 
-io.on('connection', function (socket) {
-  socket.on('subscribe', function (data) {
-    var subscribe = {'socket': socket.id, 'line': data.from, 'trigger': data.trigger};
-    subscribeList.push(subscribe);
-    consoleLog('info', 'Socket ' + socket.id + ' subscribed.');
-  });
-
-  socket.on('disconnect', function() {
-    _.remove(subscribeList, function (o) {
-      return o.socket === socket.id;
-    });
-    consoleLog('info', 'Socket ' + socket.id + ' unsubscribed.');
-  });
-
-});

@@ -1,7 +1,7 @@
 {
-  "name": "lunchbox",
+  "name": "weather-bot",
   "version": "0.0.1",
-  "description": "Get your lunch with LINE message!",
+  "description": "Get weather info from LINE.",
   "main": "index.js",
   "scripts": {
     "start": "node ."
@@ -13,11 +13,10 @@
     "linebot": "^1.2.1",
     "lodash": "^4.17.4",
     "randomstring": "^1.1.5",
-    "socket.io": "^1.7.2",
     "sqlite3": "^3.1.8",
     "unirest": "^0.5.1"
   },
-  "repository": "https://github.com/osk2/LunchBox",
+  "repository": "https://github.com/osk2/weather-bot",
   "devDependencies": {},
   "author": "osk2",
   "license": "ISC"
