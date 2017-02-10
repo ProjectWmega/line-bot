@@ -25,59 +25,6 @@ var linebotParser = bot.parser();
 var subscribeList = [];
 var muteList = [];
 
-var getLineId = function (id, callback) {
-
-  if (/^[UR][a-z0-9]{32}$/.test(id)) {
-    // Return if param is already LINE ID
-    return id;
-  }
-
-  var output;
-  var db = new sqlite3.Database('db.sqlite');
-  db.serialize(function() {
-    db.get('SELECT line_id from lineid WHERE short_id = ?', [id], function (err, row) {
-      if (row !== undefined && !err) {
-        output = row.line_id;
-      } else {
-        output = false;
-      }
-      db.close();
-      if (callback && typeof callback === 'function') {
-        callback(output);
-      }
-      return output;
-    });
-  });
-}
-
-var getShortId = function (lineId, callback) {
-  // Will create one if `lineId` not exists
-
-  var rdstr = randomString.generate({
-    length: 5,
-    charset: 'hex'
-  });
-  var db = new sqlite3.Database('db.sqlite');
-  var output;
-
-  db.serialize(function() {
-    db.get('SELECT short_id from lineid WHERE line_id = ?', [lineId], function (err, row) {
-      if (row === undefined || err) {
-        db.run('INSERT OR IGNORE INTO lineid (line_id, short_id)\
-                  VALUES (?, ?)', [lineId, rdstr]);
-        output = rdstr;
-      } else {
-        output = row.short_id;
-      }
-      db.close();
-      if (callback && typeof callback === 'function') {
-        callback(output);
-      }
-      return output;
-    });
-  });
-}
-
 var getAirData = function (callback) {
   unirest.get('http://opendata2.epa.gov.tw/AQX.json')
     .end(function (res) {
@@ -211,40 +158,26 @@ app.set('port', (process.env.PORT || 5567));
 app.set('json spaces', 2);
 app.post('/', linebotParser);
 
-app.get('/god', function (req, res) {
-  var db = new sqlite3.Database('db.sqlite');
-  var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  db.all('SELECT * from lineid', function (err, rows) {
-    res.json(rows);
-    consoleLog('info', '😱  GOD accessed from ' + ip);
-  });
-});
-
 app.get('/profile/:id', cors(), function (req, res) {
   var paramId = req.params.id;
   var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  getLineId(paramId, function (lineId) {
-    // Both LINE ID or short ID are ok
+  if (/^[UR][a-z0-9]{32}$/.test(id)) {
     bot.getUserProfile(lineId).then(function (profile) {
       res.json(profile);
-      consoleLog('info', 'Query profile. Remote: ' + ip);
     });
-  });
+  } else {
+    res.json({'result': 'Invalid LINE ID', 'request': {'id': req.params.id}});
+  }
+  consoleLog('info', 'Query profile. Remote: ' + ip);
 });
 
 app.get('/push/:id/:message', cors(), function (req, res) {
-  getLineId(req.params.id, function (lineId) {
-    if (lineId) {
-      bot.push(lineId, req.params.message);
-      bot.getUserProfile(lineId).then(function (profile) {
-        res.json({'result': 'Pushed message to ' + profile.displayName, 'request': {'id': req.params.id, 'message': req.params.message}});
-        consoleLog('info', 'Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
-      }).catch(function (error) {
-        consoleLog('error', 'Push failed ' + error);
-      });
-    } else {
-      res.json({'result': 'Failed, ID not found', 'request': {'id': req.params.id, 'message': req.params.message}});
-    }
+  bot.push(req.params.id, req.params.message);
+  bot.getUserProfile(req.params.id).then(function (profile) {
+    res.json({'result': 'Pushed message to ' + profile.displayName, 'request': {'id': req.params.id, 'message': req.params.message}});
+    consoleLog('info', 'Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
+  }).catch(function (error) {
+    consoleLog('error', 'Push failed ' + error);
   });
 });
 
@@ -276,22 +209,6 @@ bot.on('postback', function (event) {
   }
 });
 
-bot.on('follow', function (event) {
-  var type = event.source.type === 'room' ? '群組' : '使用者';
-  // Show short ID
-  getShortId(sourceId, function (shortId) {
-    replyToEvent(event, ['👇你的' + type + 'ID', shortId]);
-  });
-});
-
-bot.on('join', function (event) {
-  var type = event.source.type === 'room' ? '群組' : '使用者';
-  // Show short ID
-  getShortId(sourceId, function (shortId) {
-    replyToEvent(event, ['👇你的' + type + 'ID', shortId]);
-  });
-});
-
 bot.on('message', function (event) {
   var source = event.source;
   var sourceType = source.type;
@@ -302,42 +219,13 @@ bot.on('message', function (event) {
 
   sourceId = sourceType === 'room' ? source.roomId : source.userId;
 
-  if (sourceMessage === undefined) {
-    if (_.indexOf(muteList, sourceId) > -1) {
-      return;
-    }
-    // if message isn't text
-    var strings = ['你在幹嘛', '這是什麼', '這我不敢看', '！！！！！', '我年紀還小看不懂']
-    replyToEvent(event,
-    [{
-        type: 'sticker',
-        packageId: '1',
-        stickerId: '8'
-    }, _.sample(strings)]);
-    return ;
-  } else {
+  if (sourceMessage !== undefined) {
     splitMessage = sourceMessage.split(' ');
+  } else {
+    return;
   }
 
-  getShortId(sourceId, function (shortId) {
-    matchedSubscribe = _.filter(subscribeList, _.matches({'line': shortId, 'trigger': sourceMessage}));
-
-    if (matchedSubscribe.length >= 1) {
-      _.each(matchedSubscribe, function (match) {
-        io.to(match.socket).emit('message');
-      });
-    }
-  });
-
   switch (splitMessage[0]) {
-  case 'id':
-  case 'ID':
-    var type = sourceType === 'room' ? '群組' : '使用者';
-    // Show short ID
-    getShortId(sourceId, function (shortId) {
-      replyToEvent(event, ['👇你的' + type + 'ID', shortId]);
-    });
-    break;
   case 'air':
   case '空氣':
 
@@ -367,25 +255,6 @@ bot.on('message', function (event) {
       replyToEvent(event, '輸入"空氣 <城市名>"查詢空氣品質\n如： 空氣 臺南市');
     }
 
-    break;
-  case '不要吵':
-    muteList.push(sourceId);
-    replyToEvent(event, '跟我說"跟我講話"我才會再理你QQ');
-    break;
-  case '跟我講話':
-    muteList = _.remove(muteList, sourceId);
-    replyToEvent(event, '嘿嘿，我又回來了');
-    break;
-  default:
-    if (_.indexOf(muteList, sourceId) > -1) {
-      return;
-    }
-    // Response with bullshit
-    unirest.get('http://more.handlino.com/sentences.json')
-      .query('limit=1,30')
-      .end(function (res) {
-        replyToEvent(event, [res.body.sentences[0]]);
-      });
     break;
   }
 });
