@@ -23,6 +23,7 @@ var sslOptions = {
 };
 var linebotParser = bot.parser();
 var subscribeList = [];
+var muteList = [];
 
 var getLineId = function (id, callback) {
 
@@ -288,10 +289,19 @@ bot.on('join', function (event) {
 });
 
 bot.on('message', function (event) {
+  var source = event.source;
+  var sourceType = source.type;
+  var sourceId = '';
+  var sourceMessage = event.message.text;
   var message = '';
   var matchedSubscribe = [];
 
-  if (event.message.text === undefined) {
+  sourceId = sourceType === 'room' ? source.roomId : source.userId;
+
+  if (sourceMessage === undefined) {
+    if (_.indexOf(muteList, sourceId) > -1) {
+      return;
+    }
     // if message isn't text
     var strings = ['你在幹嘛', '這是什麼', '這我不敢看', '！！！！！', '我年紀還小看不懂']
     replyToEvent(event,
@@ -302,11 +312,11 @@ bot.on('message', function (event) {
     }, _.sample(strings)]);
     return ;
   } else {
-    message = event.message.text.split(' ');
+    message = sourceMessage.split(' ');
   }
 
-  getShortId(event.source.userId, function (shortId) {
-    matchedSubscribe = _.filter(subscribeList, _.matches({'line': shortId, 'trigger': event.message.text}));
+  getShortId(sourceId, function (shortId) {
+    matchedSubscribe = _.filter(subscribeList, _.matches({'line': shortId, 'trigger': sourceMessage}));
 
     if (matchedSubscribe.length >= 1) {
       _.each(matchedSubscribe, function (match) {
@@ -319,7 +329,7 @@ bot.on('message', function (event) {
   case 'id':
   case 'ID':
     // Show short ID
-    getShortId(event.source.userId, function (shortId) {
+    getShortId(sourceId, function (shortId) {
       replyToEvent(event, ['👇你的使用者ID', shortId]);
     });
     break;
@@ -353,8 +363,18 @@ bot.on('message', function (event) {
     }
 
     break;
-
+  case '不要吵':
+    muteList.push(sourceId);
+    replyToEvent(event, '跟我說"跟我講話"我才會再理你QQ');
+    break;
+  case '跟我講話':
+    muteList = _.remove(muteList, sourceId);
+    replyToEvent(event, '嘿嘿，我又回來了');
+    break;
   default:
+    if (_.indexOf(muteList, sourceId) > -1) {
+      return;
+    }
     // Response with bullshit
     unirest.get('http://more.handlino.com/sentences.json')
       .query('limit=1,30')
@@ -371,7 +391,6 @@ var server = https.createServer(sslOptions, app).listen(app.get('port'), functio
 var io = require('socket.io')(server);
 
 io.on('connection', function (socket) {
-  // socket.emit('subscribe', { hello: 'world' });
   socket.on('subscribe', function (data) {
     var subscribe = {'socket': socket.id, 'line': data.from, 'trigger': data.trigger};
     subscribeList.push(subscribe);
