@@ -1,36 +1,44 @@
-var https = require('https');
-var fs = require('fs');
-var _ = require('lodash');
-var app = require('express')();
-var unirest = require('unirest');
-var linebot = require('linebot');
-var chalk = require('chalk');
-var config = require('./config');
-var channelInfo = config.channel;
-var sslInfo = config.ssl;
-var bot = linebot({
+const https = require('https');
+const fs = require('fs');
+const _ = require('lodash');
+const app = require('express')();
+const unirest = require('unirest');
+const linebot = require('linebot');
+const chalk = require('chalk');
+const q = require('q');
+const config = require('./config');
+const channelInfo = config.channel;
+const sslInfo = config.ssl;
+const bot = linebot({
     channelId: channelInfo.id,
     channelSecret: channelInfo.secret,
     channelAccessToken: channelInfo.token
 });
-var sslOptions = {
+const sslOptions = {
   ca: fs.readFileSync(sslInfo.ca),
   key: fs.readFileSync(sslInfo.key),
   cert: fs.readFileSync(sslInfo.cert)
 };
-var linebotParser = bot.parser();
-var subscribeList = [];
-var muteList = [];
+const linebotParser = bot.parser();
+let muteList = [];
 
-var getAirData = function (callback) {
-  unirest.get('http://opendata2.epa.gov.tw/AQX.json')
-    .end(function (res) {
-      callback(res.body);
-    });
+const getAirData = () => {
+  const deferred = q.defer();
+
+  fs.readFile('data/aqx.json', 'utf-8', (err, data) => {
+    data = JSON.parse(data);
+    if (err) {
+      deferred.reject(new Error('Error while reading data/aqx.json'));
+    } else {
+      deferred.resolve(data);
+    }
+  });
+  return deferred.promise;
 }
 
-var airInfoMessageBuilder = function (data) {
-  var output = '';
+const airInfoMessageBuilder = (data) => {
+  let output = '';
+
   output += data['County'] + data['SiteName'] + '\n';
   output += data['PublishTime'] + ' 發布\n\n';
 
@@ -74,8 +82,8 @@ var airInfoMessageBuilder = function (data) {
   return output;
 }
 
-var airListMessageBuilder = function (data, offset) {
-  var output = {
+const airListMessageBuilder = (data, offset) => {
+  let output = {
     'type': 'template',
     'altText': '',
     'template': {
@@ -84,7 +92,7 @@ var airListMessageBuilder = function (data, offset) {
         'actions': []
     }
   };
-  var count = offset + 3;
+  const count = offset + 3;
 
   if (data.length === 0) {
     output = '哎呀！沒有這個城市\n\n小提醒：\n如果要查詢"台南"，請輸入正體全名"臺南市"';
@@ -96,12 +104,13 @@ var airListMessageBuilder = function (data, offset) {
   }
 
   output.altText += '有下列測站：\n\n';
-  _.each(data, function (site) {
+  _.each(data, (site) => {
     output.altText += site.County + ' ' + site.SiteName + '\n';
   });
 
   for (offset; offset < count; offset++) {
-    var item = {};
+    let item = {};
+
     item.type = 'postback';
     item.label = data[offset].County + data[offset].SiteName;
     item.data = '{"action":"getAirData","location":"' + data[offset].County + '|' + data[offset].SiteName + '"}';
@@ -113,20 +122,24 @@ var airListMessageBuilder = function (data, offset) {
   return output;
 }
 
-var replyToEvent = function (event, pushMessage) {
+const replyToEvent = (event, pushMessage) => {
+  const deferred = q.defer();
 
-  event.reply(pushMessage).then(function (data) {
-    event.source.profile().then(function (profile) {
+  event.reply(pushMessage).then((data) => {
+    event.source.profile().then((profile) => {
       consoleLog('info', 'Replied message from ' + profile.displayName);
       consoleLog('info', 'Return data: ', data);
+      deferred.resolve();
     });
-  }).catch(function (error) {
-    consoleLog('error', 'Reply failed: ' + error);
+  }).catch((error) => {
+    deferred.reject(new Error('Reply failed: ' + error));
   });
+  return deferred.promise;
 }
 
-var consoleLog = function (type, message) {
-  var log = '';
+const consoleLog = (type, message) => {
+  let log = '';
+
   switch (type) {
   case 'info':
     log += chalk.blue('INFO ') + ' ' + message;
@@ -146,7 +159,7 @@ var consoleLog = function (type, message) {
   }
 }
 
-app.use(function (req, res, next) {
+app.use((req, res, next) => {
   res.setHeader('X-Powered-By', 'electricity');
   next();
 });
@@ -155,41 +168,58 @@ app.set('port', (process.env.PORT || 5567));
 app.set('json spaces', 2);
 app.post('/', linebotParser);
 
-bot.on('postback', function (event) {
-  var data = JSON.parse(event.postback.data);
+bot.on('postback', (event) => {
+  const data = JSON.parse(event.postback.data);
+
   switch(data.action) {
   case 'nextSet':
-    var offset = data.offset;
-    var county = data.county;
-    getAirData(function (airData) {
-      var filteredData = [];
-      filteredData = _.remove(airData, function (o) {return o.County === county});
-      replyToEvent(event, airListMessageBuilder(filteredData, offset));
+    const offset = data.offset;
+    const county = data.county;
+
+    getAirData()
+    .then((airData) => {
+      let filteredData = [];
+      filteredData = _.remove(airData, (o) => {return o.County === county});
+      return airListMessageBuilder(filteredData, offset);
+    })
+    .then((output) => {
+      replyToEvent(event, output);
+    })
+    .fail((error) => {
+      consoleLog('error', error);
     });
     break;
 
   case 'getAirData':
-    var location = data.location.split('|');
-    var filteredData = [];
-    var output = [];
-    getAirData(function (airData) {
+    const location = data.location.split('|');
+    let filteredData = [];
+    let output = [];
+
+    getAirData()
+    .then((airData) => {
       filteredData = _.filter(airData, _.matches({'County': location[0], 'SiteName': location[1]}));
-      _.each(filteredData, function (site) {
+      _.each(filteredData, (site) => {
         output.push(airInfoMessageBuilder(site));
       });
+      return output;
+    })
+    .then((output) => {
       replyToEvent(event, output);
+    })
+    .fail((error) => {
+      consoleLog('error', error);
     });
     break;
   }
 });
 
-bot.on('message', function (event) {
-  var source = event.source;
-  var sourceType = source.type;
-  var sourceId = '';
-  var sourceMessage = event.message.text;
-  var splitMessage = '';
-  var matchedSubscribe = [];
+bot.on('message', (event) => {
+  const source = event.source;
+  const sourceType = source.type;
+  const sourceMessage = event.message.text;
+  let sourceId = '';
+  let splitMessage = '';
+  let matchedSubscribe = [];
 
   sourceId = sourceType === 'room' ? source.roomId : source.userId;
 
@@ -204,36 +234,49 @@ bot.on('message', function (event) {
   case '空氣':
 
     if (splitMessage[2]) {
-      // If SiteName is specified, show air info.
-      var output = [];
-      var filteredData = [];
-      getAirData(function (airData) {
+      // If SiteName is supplied, show air info.
+      let output = [];
+      let filteredData = [];
+
+      getAirData()
+      .then((airData) => {
         filteredData = _.filter(airData, _.matches({'County': splitMessage[1], 'SiteName': splitMessage[2]}));
-        _.each(filteredData, function (site) {
+        _.each(filteredData, (site) => {
           output.push(airInfoMessageBuilder(site));
         });
+        return output;
+      })
+      .then((output) => {
         replyToEvent(event, output);
+      })
+      .fail((error) => {
+        consoleLog('error', error);
       });
       break;
     }
 
     if (splitMessage[1]) {
-      // If only County specified, then show site list
-      getAirData(function (airData) {
-        var filteredData = [];
+      // If only County supplied, then show site list
+      getAirData()
+      .then((airData) => {
+        let filteredData = [];
 
-        filteredData = _.remove(airData, function (o) {return o.County === splitMessage[1]});
-        replyToEvent(event, airListMessageBuilder(filteredData, 0));
+        filteredData = _.remove(airData, (o) => {return o.County === splitMessage[1]});
+        return airListMessageBuilder(filteredData, 0);
+      })
+      .then((output) => {
+        replyToEvent(event, output);
+      })
+      .fail((error) => {
+        consoleLog('error', error);
       });
     } else {
       replyToEvent(event, '輸入"空氣 <城市名>"查詢空氣品質\n如： 空氣 臺南市');
     }
-
     break;
   }
 });
 
-var server = https.createServer(sslOptions, app).listen(app.get('port'), function() {
+https.createServer(sslOptions, app).listen(app.get('port'), function() {
   consoleLog('success', 'Listening on port ' + app.get('port'));
 });
-
