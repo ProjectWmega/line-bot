@@ -155,29 +155,6 @@ app.set('port', (process.env.PORT || 5567));
 app.set('json spaces', 2);
 app.post('/', linebotParser);
 
-app.get('/profile/:id', cors(), function (req, res) {
-  var paramId = req.params.id;
-  var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  if (/^[UR][a-z0-9]{32}$/.test(id)) {
-    bot.getUserProfile(lineId).then(function (profile) {
-      res.json(profile);
-    });
-  } else {
-    res.json({'result': 'Invalid LINE ID', 'request': {'id': req.params.id}});
-  }
-  consoleLog('info', 'Query profile. Remote: ' + ip);
-});
-
-app.get('/push/:id/:message', cors(), function (req, res) {
-  bot.push(req.params.id, req.params.message);
-  bot.getUserProfile(req.params.id).then(function (profile) {
-    res.json({'result': 'Pushed message to ' + profile.displayName, 'request': {'id': req.params.id, 'message': req.params.message}});
-    consoleLog('info', 'Pushed message to ' + profile.displayName + ' (' + req.params.id + ')');
-  }).catch(function (error) {
-    consoleLog('error', 'Push failed ' + error);
-  });
-});
-
 bot.on('postback', function (event) {
   var data = JSON.parse(event.postback.data);
   switch(data.action) {
