@@ -2,6 +2,7 @@ const _ = require('lodash');
 const fs = require('fs');
 const weatherTW = require('weather-taiwan');
 const config = require('./config');
+const unirest = require('unirest');
 
 const fetcher = weatherTW.fetch(config.cwb.token);
 const parser = weatherTW.parse();
@@ -12,16 +13,16 @@ parser.on('data', function (station) {
 });
 
 parser.on('error', function (error) {
-  fs.appendFile('update.log', stations, function (err) {
+  fs.appendFile('update.log', 'Error while updating weather: ' + error + '\n', function (err) {
     if (err) {
-      console.error('Parser error: ' + error, new Date());
+      console.error('FS error: ' + err, new Date());
     }
   });
 });
 
 parser.on('finish', function () {
   stations = JSON.stringify(stations, null, 2);
-  fs.writeFile('data/stations.json', stations, function (err) {
+  fs.writeFile('data/weather.json', stations, function (err) {
     if (err) {
       console.error('FS error: ' + err, new Date());
     }
@@ -29,3 +30,20 @@ parser.on('finish', function () {
 });
 
 fetcher.pipe(parser);
+
+unirest.get('http://opendata2.epa.gov.tw/AQX.json')
+.end(function (res) {
+  if (!res.ok) {
+    fs.appendFile('update.log', 'Server retrun status code ' + res.code + '\n', function (err) {
+      if (err) {
+        console.error('FS error: ' + err, new Date());
+      }
+    });
+  } else {
+    fs.writeFile('data/aqx.json', JSON.stringify(res.body), function (err) {
+      if (err) {
+        console.error('FS error: ' + err, new Date());
+      }
+    });
+  }
+});
