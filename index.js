@@ -174,11 +174,12 @@ bot.on('postback', (event) => {
   switch(data.action) {
   case 'nextSet':
     const offset = data.offset;
-    const county = data.county;
+    let county = data.county;
 
     getAirData()
     .then((airData) => {
       let filteredData = [];
+
       filteredData = _.remove(airData, (o) => {return o.County === county});
       return airListMessageBuilder(filteredData, offset);
     })
@@ -219,7 +220,6 @@ bot.on('message', (event) => {
   const sourceMessage = event.message.text;
   let sourceId = '';
   let splitMessage = '';
-  let matchedSubscribe = [];
 
   sourceId = sourceType === 'room' ? source.roomId : source.userId;
 
