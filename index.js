@@ -92,7 +92,7 @@ const airListMessageBuilder = (data, offset) => {
         'actions': []
     }
   };
-  const count = offset + 3;
+  let count = offset + 3;
 
   if (data.length === 0) {
     output = '哎呀！沒有這個城市\n\n小提醒：\n如果要查詢"台南"，請輸入正體全名"臺南市"';
