@@ -4,7 +4,8 @@ const weatherTW = require('weather-taiwan');
 const config = require('./config');
 const unirest = require('unirest');
 
-const fetcher = weatherTW.fetch(config.cwb.token);
+// const fetcher = weatherTW.fetch(config.cwb.token);
+const fetcher = weatherTW.fetch('CWB-3DFC8F23-8E9B-48AA-9FBB-2CCE7425A515');
 const parser = weatherTW.parse();
 let stations = [];
 
@@ -22,9 +23,12 @@ parser.on('error', function (error) {
 
 parser.on('finish', function () {
   stations = JSON.stringify(stations, null, 2);
-  fs.writeFile('data/weather.json', stations, function (err) {
+  fs.writeFile('/var/www/weather-bot/data/weather.json', stations, function (err) {
     if (err) {
       console.error('FS error: ' + err, new Date());
+    } else {
+      console.log(new Date());
+      console.log('Weather updated.');
     }
   });
 });
@@ -40,9 +44,12 @@ unirest.get('http://opendata2.epa.gov.tw/AQX.json')
       }
     });
   } else {
-    fs.writeFile('data/aqx.json', JSON.stringify(res.body), function (err) {
+    fs.writeFile('/var/www/weather-bot/data/aqx.json', JSON.stringify(res.body), function (err) {
       if (err) {
         console.error('FS error: ' + err, new Date());
+      } else {
+        console.log(new Date());
+        console.log('AQX updated');
       }
     });
   }
