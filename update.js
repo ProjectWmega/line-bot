@@ -4,8 +4,7 @@ const weatherTW = require('weather-taiwan');
 const config = require('./config');
 const unirest = require('unirest');
 
-// const fetcher = weatherTW.fetch(config.cwb.token);
-const fetcher = weatherTW.fetch('CWB-3DFC8F23-8E9B-48AA-9FBB-2CCE7425A515');
+const fetcher = weatherTW.fetch(config.cwb.token);
 const parser = weatherTW.parse();
 let stations = [];
 
