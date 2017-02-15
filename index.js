@@ -369,7 +369,7 @@ bot.on('message', (event) => {
       replyToEvent(event, '找不到這個城市的資料\n\n請注意：\n若要查詢的是"台南"，請輸入正體全名"臺南市"');
     }
   } else {
-    replyToEvent(event, '輸入"<城市名稱> <鄉鎮區名稱>"查詢空氣品質\n如：高雄市 前鎮區');
+    replyToEvent(event, '輸入"<城市名稱> <鄉鎮區名稱>"查詢氣象及空氣資訊\n如：高雄市 前鎮區');
   }
     
 });
