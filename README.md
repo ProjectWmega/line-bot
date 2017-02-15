@@ -4,9 +4,11 @@ Have fun with LINE!
 
 ##Installation
 
-Fill LINE Channel infomation and SSL path in [`config.js`](config.js)
+Make sure fill LINE Channel infomation, CWB token and cert path into [`config.js`](config.js) first
 
-If you don't have SSL yet, create one at [SSL For Free](https://www.sslforfree.com)
+You can create free SSL at [SSL For Free](https://www.sslforfree.com) if you don't have it yet
+
+Obtain CWB token at [CWB](http://opendata.cwb.gov.tw/usages)
 
 After all set, run:
 
