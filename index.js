@@ -6,6 +6,7 @@ const unirest = require('unirest');
 const linebot = require('linebot');
 const chalk = require('chalk');
 const q = require('q');
+const dateFormat = require('dateformat');
 const config = require('./config');
 const channelInfo = config.channel;
 const sslInfo = config.ssl;
@@ -36,10 +37,26 @@ const getAirData = () => {
   return deferred.promise;
 }
 
+const getWeatherData = () => {
+  const deferred = q.defer();
+  fs.readFile('data/weather.json', 'utf-8', (err, data) => {
+    data = JSON.parse(data);
+    if (err) {
+      deferred.reject(new Error('Error while reading data/weather.json'));
+    } else {
+      deferred.resolve(data);
+    }
+  });
+  return deferred.promise;
+}
+
 const airInfoMessageBuilder = (data) => {
   let output = '';
 
-  output += data['County'] + data['SiteName'] + '\n';
+  if (!data) {
+    return output;
+  }
+
   output += data['PublishTime'] + ' 發布\n\n';
 
   /* 
@@ -68,10 +85,14 @@ const airInfoMessageBuilder = (data) => {
 
   if (data['MajorPollutant'] !== '') {
     output += '- 指標污染物：' + data['MajorPollutant'] + '\n';
+  } else {
+    output += '- 指標污染物：N/A\n';
   }
 
   if (data['Status'] !== '') {
     output += '- 空氣品質指標：' + data['Status'] + '\n';
+  } else {
+    output += '- 空氣品質指標：N/A\n';
   }
 
   if (data['PM2.5'] !== '') {
@@ -79,6 +100,66 @@ const airInfoMessageBuilder = (data) => {
   } else {
     output += '- PM2.5：N/A';
   }
+  console.log('air',output)
+  return output;
+}
+
+const weatherInfoMessageBuilder = (data) => {
+  let output = '';
+
+  /*
+    STID      測站ID
+    STNM      測站編號
+    OBS_TIME  觀測資料時間
+    TIME      未使用
+    LAT       緯度 (座標系統採TWD67)
+    LON       經度 (座標系統採TWD67)
+    ELEV      高度，單位 公尺
+    WDIR      風向，單位 度，風向 0 表示無風
+    WDSD      風速，單位 公尺/秒
+    TEMP      溫度，單位 攝氏
+    HUMD      相對濕度，單位 百分比率，此處以實數 0-1.0 記錄
+    PRES      測站氣壓，單位 百帕
+    SUN       日照時數，單位 小時
+    H_24R     日累積雨量，單位 毫米
+    WS15M     觀測時間前推十五分鐘內發生最大風的風速，單位 公尺/秒
+    WD15M     觀測時間前推十五分鐘內發生最大風的風速，單位 度
+    WS15T     觀測時間前推十五分鐘內發生最大風的發生時間，hhmm (小時分鐘)
+    CITY      縣市
+    CITY_SN   縣市編號
+    TOWN      鄉鎮
+    TOWN_SN   鄉鎮編號
+
+    1. 負值 (除溫度外) 皆表示 該時刻因故無資料。
+    2. 溫度值小於 -90. 亦表示 該時刻因故無資料。
+
+    ref: http://opendata.cwb.gov.tw/opendatadoc/DIV2/A0001-001.pdf
+  */
+
+  if (!data) {
+    return output;
+  }
+
+  output += dateFormat(data.obsTime, 'yyyy-mm-dd HH:MM') + ' 觀測\n\n';
+
+  if (data.elements.TEMP > -90) {
+    output += '- 溫度：' + data.elements.TEMP + '°C\n';
+  } else {
+    output += '- 溫度：N/A\n';
+  }
+
+  if (data.elements.HUMD >= 0) {
+    output += '- 濕度：' + (data.elements.HUMD * 100) + '%\n';
+  } else {
+    output += '- 濕度：N/A\n';
+  }
+
+  if (data.elements.WDSD >= 0) {
+    output += '- 風速：' + data.elements.WDSD + 'm/s\n';
+  } else {
+    output += '- 風速：N/A\n';
+  }
+  output += '\n註：N/A表示測站無回傳資料';
   return output;
 }
 
@@ -218,63 +299,79 @@ bot.on('message', (event) => {
   const source = event.source;
   const sourceType = source.type;
   const sourceMessage = event.message.text;
+  const cities = [
+    '桃園縣',
+    '新竹縣',
+    '苗栗縣',
+    '彰化縣',
+    '南投縣',
+    '雲林縣',
+    '嘉義縣',
+    '屏東縣',
+    '宜蘭縣',
+    '花蓮縣',
+    '臺東縣',
+    '澎湖縣',
+    '金門縣',
+    '連江縣',
+    '基隆市',
+    '新竹市',
+    '嘉義市',
+    '臺北市',
+    '新北市',
+    '臺中市',
+    '臺南市',
+    '高雄市'
+  ];
   let sourceId = '';
   let splitMessage = '';
 
   sourceId = sourceType === 'room' ? source.roomId : source.userId;
 
-  if (sourceMessage !== undefined) {
-    splitMessage = sourceMessage.split(' ');
-  } else {
-    return;
+  if (sourceMessage !== undefined) { 
+    splitMessage = sourceMessage.split(' '); 
+  } else { 
+    return; 
   }
 
-  switch (splitMessage[0]) {
-  case 'air':
-  case '空氣':
+  if (splitMessage[1]) {
+    if (_.indexOf(cities, splitMessage[0]) > -1) {
+      q.all([getAirData(), getWeatherData()])
+      .spread((airData, weatherData) => {
+        let output = [];
+        let airInfoMessage = '';
+        let weatherInfoMessage = '';
 
-    if (splitMessage[2]) {
-      // If SiteName is supplied, show air info.
-      let output = [];
-      let filteredData = [];
+        weatherInfoMessage = weatherInfoMessageBuilder(_.remove(weatherData, (o) => {
+          return o.parameters.TOWN === splitMessage[1];
+        })[0]);
+        weatherInfoMessage = weatherInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的天氣資訊' : weatherInfoMessage;
+        output.push({'type': 'text', 'text': weatherInfoMessage});
 
-      getAirData()
-      .then((airData) => {
-        filteredData = _.filter(airData, _.matches({'County': splitMessage[1], 'SiteName': splitMessage[2]}));
-        _.each(filteredData, (site) => {
-          output.push(airInfoMessageBuilder(site));
-        });
-        return output;
-      })
-      .then((output) => {
+        airInfoMessage = airInfoMessageBuilder(_.remove(airData, (o) => {
+          let siteName = '';
+
+          if (_.indexOf(['區', '鄉', '鎮'], splitMessage[1][splitMessage[1].length - 1]) > -1) {
+            // if last character is one of ['區', '鄉', '鎮'], remove it then
+            siteName = splitMessage[1].slice(0, -1);
+          } else {
+            siteName = splitMessage[1];
+          }
+          return o.SiteName === siteName;
+        })[0]);
+        airInfoMessage = airInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的空氣資訊' : airInfoMessage;
+        output.push({'type': 'text', 'text': airInfoMessage});
+
         replyToEvent(event, output);
       })
-      .fail((error) => {
-        consoleLog('error', error);
-      });
-      break;
-    }
-
-    if (splitMessage[1]) {
-      // If only County supplied, then show site list
-      getAirData()
-      .then((airData) => {
-        let filteredData = [];
-
-        filteredData = _.remove(airData, (o) => {return o.County === splitMessage[1]});
-        return airListMessageBuilder(filteredData, 0);
-      })
-      .then((output) => {
-        replyToEvent(event, output);
-      })
-      .fail((error) => {
-        consoleLog('error', error);
-      });
+      .done();
     } else {
-      replyToEvent(event, '輸入"空氣 <城市名>"查詢空氣品質\n如： 空氣 臺南市');
+      replyToEvent(event, '找不到這個城市的資料\n\n請注意：\n若要查詢的是"台南"，請輸入正體全名"臺南市"');
     }
-    break;
+  } else {
+    replyToEvent(event, '輸入"<城市名稱> <鄉鎮區名稱>"查詢空氣品質\n如：高雄市 前鎮區');
   }
+    
 });
 
 https.createServer(sslOptions, app).listen(app.get('port'), function() {
