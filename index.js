@@ -11,9 +11,9 @@ const config = require('./config');
 const channelInfo = config.channel;
 const sslInfo = config.ssl;
 const bot = linebot({
-    channelId: channelInfo.id,
-    channelSecret: channelInfo.secret,
-    channelAccessToken: channelInfo.token
+  channelId: channelInfo.id,
+  channelSecret: channelInfo.secret,
+  channelAccessToken: channelInfo.token
 });
 const sslOptions = {
   ca: fs.readFileSync(sslInfo.ca),
@@ -21,33 +21,59 @@ const sslOptions = {
   cert: fs.readFileSync(sslInfo.cert)
 };
 const linebotParser = bot.parser();
-let muteList = [];
 
-const getAirData = () => {
+const readJSON = (path) => {
   const deferred = q.defer();
 
-  fs.readFile('data/aqx.json', 'utf-8', (err, data) => {
-    data = JSON.parse(data);
+  fs.readFile(path, 'utf-8', (err, data) => {
     if (err) {
-      deferred.reject(new Error('Error while reading data/aqx.json'));
+      deferred.reject(new Error('Error while reading ' + path + ', ' + err));
     } else {
+      if (!_.isEmpty(data)) {
+        data = JSON.parse(data);
+      } else {
+        data = [];
+      }
       deferred.resolve(data);
     }
   });
   return deferred.promise;
 }
 
-const getWeatherData = () => {
+const appendJSON = (path, data) => {
   const deferred = q.defer();
-  fs.readFile('data/weather.json', 'utf-8', (err, data) => {
-    data = JSON.parse(data);
-    if (err) {
-      deferred.reject(new Error('Error while reading data/weather.json'));
-    } else {
-      deferred.resolve(data);
-    }
+
+  readJSON(path)
+  .then((json) => {
+    json.push(data)
+    fs.writeFile(path, JSON.stringify(json, null, 2), function (err) {
+      if (err) {
+        deferred.reject(new Error('Error while writing ' + path + ', ' + err));
+      } else {
+        deferred.resolve(data);
+      }
+    });
+  })
+  .fail((error) => {
+    deferred.reject();
   });
   return deferred.promise;
+}
+
+const saveRegistration = (data) => {
+  return appendJSON('data/registration.json', data);
+}
+
+const getRegistration = () => {
+  return readJSON('data/registration.json');
+}
+
+const getAirData = () => {
+  return readJSON('data/aqx.json');
+}
+
+const getWeatherData = () => {
+  return readJSON('data/weather.json');
 }
 
 const airInfoMessageBuilder = (data) => {
@@ -241,7 +267,7 @@ const consoleLog = (type, message) => {
 }
 
 app.use((req, res, next) => {
-  res.setHeader('X-Powered-By', 'electricity');
+  res.setHeader('X-Powered-By', 'Electricity');
   next();
 });
 
@@ -250,12 +276,15 @@ app.set('json spaces', 2);
 app.post('/', linebotParser);
 
 bot.on('postback', (event) => {
-  const data = JSON.parse(event.postback.data);
+  const source = event.source;
+  const sourceType = source.type;
+  const sourceId = sourceType === 'room' ? source.roomId : source.userId;
+  const postbackData = JSON.parse(event.postback.data);
 
-  switch(data.action) {
+  switch(postbackData.action) {
   case 'nextSet':
-    const offset = data.offset;
-    let county = data.county;
+    const offset = postbackData.offset;
+    let county = postbackData.county;
 
     getAirData()
     .then((airData) => {
@@ -273,7 +302,7 @@ bot.on('postback', (event) => {
     break;
 
   case 'getAirData':
-    const location = data.location.split('|');
+    const location = postbackData.location.split('|');
     let filteredData = [];
     let output = [];
 
@@ -291,6 +320,44 @@ bot.on('postback', (event) => {
     .fail((error) => {
       consoleLog('error', error);
     });
+    break;
+
+  case 'registration':
+    if (postbackData.answer) {
+      getRegistration()
+      .then((registrations) => {
+        if (_.findIndex(registrations, {userId: sourceId}) < 0) {
+          return bot.getUserProfile(sourceId);
+        } else {
+          return false;
+        }
+      })
+      .then((result) => {
+        if (!result) {
+          replyToEvent(event, '你已經註冊囉');
+          return false;
+        }
+        return saveRegistration(result);
+      })
+      .then((result) => {
+        if (result !== false) {
+          replyToEvent(event, ['收到了', {
+            type: 'sticker',
+            packageId: '2',
+            stickerId: '179'
+          }]);
+        }
+      })
+      .fail((error) => {
+        consoleLog('error', error);
+      });
+    } else {
+      replyToEvent(event, ['都是我不好', {
+        type: 'sticker',
+        packageId: '1',
+        stickerId: '9'
+      }]);
+    }
     break;
   }
 });
@@ -334,7 +401,30 @@ bot.on('message', (event) => {
     return; 
   }
 
+  if (sourceMessage === '選我選我') {
+    let output = {
+      type: 'template',
+      altText: '登記搶先體驗確認',
+      template: {
+        type: 'confirm',
+        text: '確定登記搶先體驗嗎？',
+        actions: [{
+          type: 'postback',
+          label: '沒錯！',
+          data: '{"action": "registration", "answer": true}'
+        }, {
+          type: 'postback',
+          label: '後悔了',
+          data: '{"action": "registration", "answer": false}'
+        }]
+      }
+    };
+    replyToEvent(event, output);
+    return;
+  }
+
   if (splitMessage[1]) {
+    // If town name is supplied.
     if (_.indexOf(cities, splitMessage[0]) > -1) {
       q.all([getAirData(), getWeatherData()])
       .spread((airData, weatherData) => {
