@@ -68,6 +68,10 @@ const getRegistration = () => {
   return readJSON('data/registration.json');
 }
 
+const getBetaList = () => {
+ return readJSON('data/beta.json'); 
+}
+
 const getAirData = () => {
   return readJSON('data/aqx.json');
 }
@@ -394,7 +398,7 @@ bot.on('message', (event) => {
 
   sourceId = sourceType === 'room' ? source.roomId : source.userId;
 
-  if (sourceMessage !== undefined) { 
+  if (sourceMessage !== undefined) {
     splitMessage = sourceMessage.split(' '); 
   } else { 
     return; 
@@ -432,44 +436,52 @@ bot.on('message', (event) => {
     return;
   }
 
-  if (splitMessage[1]) {
-    // If town name is supplied.
-    if (_.indexOf(cities, splitMessage[0]) > -1) {
-      q.all([getAirData(), getWeatherData()])
-      .spread((airData, weatherData) => {
-        let output = [];
-        let airInfoMessage = '';
-        let weatherInfoMessage = '';
+  getBetaList()
+  .then((users) => {
+    if (_.findIndex(users, {userId: sourceId}) > -1) {
+      // Check if user is in the list
 
-        weatherInfoMessage = weatherInfoMessageBuilder(_.remove(weatherData, (o) => {
-          return o.parameters.TOWN === splitMessage[1];
-        })[0]);
-        weatherInfoMessage = weatherInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的天氣資訊' : weatherInfoMessage;
-        output.push({'type': 'text', 'text': weatherInfoMessage});
+      if (splitMessage[1]) {
+        // If town name is supplied.
+        if (_.indexOf(cities, splitMessage[0]) > -1) {
+          q.all([getAirData(), getWeatherData()])
+          .spread((airData, weatherData) => {
+            let output = [];
+            let airInfoMessage = '';
+            let weatherInfoMessage = '';
 
-        airInfoMessage = airInfoMessageBuilder(_.remove(airData, (o) => {
-          let siteName = '';
+            weatherInfoMessage = weatherInfoMessageBuilder(_.remove(weatherData, (o) => {
+              return o.parameters.TOWN === splitMessage[1];
+            })[0]);
+            weatherInfoMessage = weatherInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的天氣資訊' : weatherInfoMessage;
+            output.push({'type': 'text', 'text': weatherInfoMessage});
 
-          if (_.indexOf(['區', '鄉', '鎮'], splitMessage[1][splitMessage[1].length - 1]) > -1) {
-            // if last character is one of ['區', '鄉', '鎮'], remove it then
-            siteName = splitMessage[1].slice(0, -1);
-          } else {
-            siteName = splitMessage[1];
-          }
-          return o.SiteName === siteName;
-        })[0]);
-        airInfoMessage = airInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的空氣資訊' : airInfoMessage;
-        output.push({'type': 'text', 'text': airInfoMessage});
+            airInfoMessage = airInfoMessageBuilder(_.remove(airData, (o) => {
+              let siteName = '';
 
-        replyToEvent(event, output);
-      })
-      .done();
-    } else {
-      replyToEvent(event, '找不到這個城市的資料\n\n請注意：\n若要查詢的是"台南"，請輸入正體全名"臺南市"');
+              if (_.indexOf(['區', '鄉', '鎮'], splitMessage[1][splitMessage[1].length - 1]) > -1) {
+                // if last character is one of ['區', '鄉', '鎮'], remove it then
+                siteName = splitMessage[1].slice(0, -1);
+              } else {
+                siteName = splitMessage[1];
+              }
+              return o.SiteName === siteName;
+            })[0]);
+            airInfoMessage = airInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的空氣資訊' : airInfoMessage;
+            output.push({'type': 'text', 'text': airInfoMessage});
+
+            replyToEvent(event, output);
+          })
+          .done();
+        } else {
+          replyToEvent(event, '找不到這個城市的資料\n\n請注意：\n若要查詢的是"台南"，請輸入正體全名"臺南市"');
+        }
+      } else {
+        replyToEvent(event, '輸入"<城市名稱> <鄉鎮區名稱>"查詢氣象及空氣資訊\n如：高雄市 前鎮區');
+      }
+
     }
-  } else {
-    replyToEvent(event, '輸入"<城市名稱> <鄉鎮區名稱>"查詢氣象及空氣資訊\n如：高雄市 前鎮區');
-  }
+  });
     
 });
 
