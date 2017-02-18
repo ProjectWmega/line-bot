@@ -126,7 +126,6 @@ const airInfoMessageBuilder = (data) => {
   } else {
     output += '- PM2.5：N/A';
   }
-  console.log('air',output)
   return output;
 }
 
@@ -401,8 +400,18 @@ bot.on('message', (event) => {
     return; 
   }
 
+  if (sourceMessage === '*_DEBUG_*') {
+    bot
+    .getUserProfile(sourceId)
+    .then((profile) => {
+      consoleLog('success', JSON.stringify(profile, null, 2));
+      replyToEvent(event, '🐞🐞🐞');
+    });
+    return;
+  }
+
   if (sourceMessage === '選我選我') {
-    let output = {
+    const output = {
       type: 'template',
       altText: '登記搶先體驗確認',
       template: {
