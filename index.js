@@ -76,8 +76,21 @@ const getAirData = () => {
   return readJSON('data/aqx.json');
 }
 
-const getWeatherData = () => {
-  return readJSON('data/weather.json');
+const getWeatherData = (town) => {
+  const deferred = q.defer();
+
+  readJSON('data/town.json')
+  .then((towns) => {
+    return _.find(towns, {'name': town});
+  })
+  .then((town) => {
+    unirest
+    .get('https://works.ioa.tw/weather/api/weathers/' + town.id + '.json')
+    .end((response) => {
+      deferred.resolve(response.body);
+    });
+  });
+  return deferred.promise;
 }
 
 const airInfoMessageBuilder = (data) => {
@@ -136,60 +149,35 @@ const airInfoMessageBuilder = (data) => {
 const weatherInfoMessageBuilder = (data) => {
   let output = '';
 
-  /*
-    STID      測站ID
-    STNM      測站編號
-    OBS_TIME  觀測資料時間
-    TIME      未使用
-    LAT       緯度 (座標系統採TWD67)
-    LON       經度 (座標系統採TWD67)
-    ELEV      高度，單位 公尺
-    WDIR      風向，單位 度，風向 0 表示無風
-    WDSD      風速，單位 公尺/秒
-    TEMP      溫度，單位 攝氏
-    HUMD      相對濕度，單位 百分比率，此處以實數 0-1.0 記錄
-    PRES      測站氣壓，單位 百帕
-    SUN       日照時數，單位 小時
-    H_24R     日累積雨量，單位 毫米
-    WS15M     觀測時間前推十五分鐘內發生最大風的風速，單位 公尺/秒
-    WD15M     觀測時間前推十五分鐘內發生最大風的風速，單位 度
-    WS15T     觀測時間前推十五分鐘內發生最大風的發生時間，hhmm (小時分鐘)
-    CITY      縣市
-    CITY_SN   縣市編號
-    TOWN      鄉鎮
-    TOWN_SN   鄉鎮編號
-
-    1. 負值 (除溫度外) 皆表示 該時刻因故無資料。
-    2. 溫度值小於 -90. 亦表示 該時刻因故無資料。
-
-    ref: http://opendata.cwb.gov.tw/opendatadoc/DIV2/A0001-001.pdf
-  */
-
   if (!data) {
     return output;
   }
 
-  output += dateFormat(data.obsTime, 'yyyy-mm-dd HH:MM') + ' 觀測\n\n';
+  output += dateFormat(data.at, 'yyyy-mm-dd HH:MM') + ' 發布\n\n';
 
-  if (data.elements.TEMP > -90) {
-    output += '- 溫度：' + data.elements.TEMP + '°C\n';
-  } else {
+  if (data.desc !== '') {
+    output += data.desc + '\n';
+  }
+
+  if (!data.temperature) {
     output += '- 溫度：N/A\n';
+  } else {
+    output += '- 溫度：' + data.temperature + '℃\n';
   }
 
-  if (data.elements.HUMD >= 0) {
-    output += '- 濕度：' + (data.elements.HUMD * 100) + '%\n';
-  } else {
+  if (!data.humidity) {
     output += '- 濕度：N/A\n';
+  } else {
+    output += '- 濕度：' + data.humidity + '%\n';
   }
 
-  if (data.elements.WDSD >= 0) {
-    output += '- 風速：' + data.elements.WDSD + 'm/s\n';
-  } else {
-    output += '- 風速：N/A\n';
+  if (data.specials.length > 0) {
+    _.each(data.specials, (special) => {
+      output +=  dateFormat(special.at, 'HH:MM') + '發布' + special.title + '\n';
+    });
   }
-  output += '\n註：N/A表示測站無回傳資料';
-  return output;
+
+  return output.replace(/\n$/, '');
 }
 
 const airListMessageBuilder = (data, offset) => {
@@ -444,15 +432,13 @@ bot.on('message', (event) => {
       if (splitMessage[1]) {
         // If town name is supplied.
         if (_.indexOf(cities, splitMessage[0]) > -1) {
-          q.all([getAirData(), getWeatherData()])
+          q.all([getAirData(), getWeatherData(splitMessage[1])])
           .spread((airData, weatherData) => {
             let output = [];
             let airInfoMessage = '';
             let weatherInfoMessage = '';
 
-            weatherInfoMessage = weatherInfoMessageBuilder(_.remove(weatherData, (o) => {
-              return o.parameters.TOWN === splitMessage[1];
-            })[0]);
+            weatherInfoMessage = weatherInfoMessageBuilder(weatherData);
             weatherInfoMessage = weatherInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的天氣資訊' : weatherInfoMessage;
             output.push({'type': 'text', 'text': weatherInfoMessage});
 
@@ -474,7 +460,7 @@ bot.on('message', (event) => {
           })
           .done();
         } else {
-          replyToEvent(event, '找不到這個城市的資料\n\n請注意：\n若要查詢的是"台南"，請輸入正體全名"臺南市"');
+          replyToEvent(event, '哎呀！沒有這個城市\n\n小提醒：\n如果要查詢"台南"，請輸入正體全名"臺南市"');
         }
       } else {
         replyToEvent(event, '輸入"<城市名稱> <鄉鎮區名稱>"查詢氣象及空氣資訊\n如：高雄市 前鎮區');

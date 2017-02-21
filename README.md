@@ -8,8 +8,6 @@ Make sure fill LINE Channel infomation, CWB token and cert path into [`config.js
 
 You can create free SSL at [SSL For Free](https://www.sslforfree.com) if you don't have it yet
 
-Obtain CWB token at [CWB](http://opendata.cwb.gov.tw/usages)
-
 After all set, run:
 
 `$ npm install`
@@ -17,3 +15,8 @@ After all set, run:
 ##Starting
 
 `$ node .`
+
+##Data Source
+
+ - AQX data fecth from [opendata2.epa.gov.tw](http://opendata2.epa.gov.tw/AQX.json)
+ - Weather data fetch from [Taiwan's Weather Maps!](https://github.com/comdan66/weather)
