@@ -1,3 +1,5 @@
+'use strict';
+
 const https = require('https');
 const fs = require('fs');
 const _ = require('lodash');
@@ -38,14 +40,14 @@ const readJSON = (path) => {
     }
   });
   return deferred.promise;
-}
+};
 
 const appendJSON = (path, data) => {
   const deferred = q.defer();
 
   readJSON(path)
   .then((json) => {
-    json.push(data)
+    json.push(data);
     fs.writeFile(path, JSON.stringify(json, null, 2), function (err) {
       if (err) {
         deferred.reject(new Error('Error while writing ' + path + ', ' + err));
@@ -54,33 +56,37 @@ const appendJSON = (path, data) => {
       }
     });
   })
-  .fail((error) => {
+  .fail(() => {
     deferred.reject();
   });
   return deferred.promise;
-}
+};
 
 const saveRegistration = (data) => {
   return appendJSON('data/registration.json', data);
-}
+};
 
 const getRegistration = () => {
   return readJSON('data/registration.json');
-}
+};
 
 const getBetaList = () => {
- return readJSON('data/beta.json'); 
-}
+ return readJSON('data/registration.json');
+ // Should change back to beta.json
+};
 
 const getAirData = () => {
   return readJSON('data/aqx.json');
-}
+};
 
 const getWeatherData = (town) => {
   const deferred = q.defer();
 
   readJSON('data/town.json')
   .then((towns) => {
+    if (!_.find(towns, {'name': town})) {
+      throw new Error('No data can be found');
+    }
     return _.find(towns, {'name': town});
   })
   .then((town) => {
@@ -89,9 +95,12 @@ const getWeatherData = (town) => {
     .end((response) => {
       deferred.resolve(response.body);
     });
+  }).
+  fail(() => {
+    deferred.resolve(null);
   });
   return deferred.promise;
-}
+};
 
 const airInfoMessageBuilder = (data) => {
   let output = '';
@@ -100,7 +109,7 @@ const airInfoMessageBuilder = (data) => {
     return output;
   }
 
-  output += data['PublishTime'] + ' 發布\n\n';
+  output += data.PublishTime + ' 發布\n\n';
 
   /* 
     List of keys
@@ -126,14 +135,14 @@ const airInfoMessageBuilder = (data) => {
     Ref: http://opendata.epa.gov.tw/Data/Details/AQX/?show=all
   */
 
-  if (data['MajorPollutant'] !== '') {
-    output += '- 指標污染物：' + data['MajorPollutant'] + '\n';
+  if (data.MajorPollutant !== '') {
+    output += '- 指標污染物：' + data.MajorPollutant + '\n';
   } else {
     output += '- 指標污染物：N/A\n';
   }
 
-  if (data['Status'] !== '') {
-    output += '- 空氣品質指標：' + data['Status'] + '\n';
+  if (data.Status !== '') {
+    output += '- 空氣品質指標：' + data.Status + '\n';
   } else {
     output += '- 空氣品質指標：N/A\n';
   }
@@ -144,7 +153,7 @@ const airInfoMessageBuilder = (data) => {
     output += '- PM2.5：N/A';
   }
   return output;
-}
+};
 
 const weatherInfoMessageBuilder = (data) => {
   let output = '';
@@ -178,7 +187,7 @@ const weatherInfoMessageBuilder = (data) => {
   }
 
   return output.replace(/\n$/, '');
-}
+};
 
 const airListMessageBuilder = (data, offset) => {
   let output = {
@@ -211,14 +220,45 @@ const airListMessageBuilder = (data, offset) => {
 
     item.type = 'postback';
     item.label = data[offset].County + data[offset].SiteName;
-    item.data = '{"action":"getAirData","location":"' + data[offset].County + '|' + data[offset].SiteName + '"}';
+    item.data = 
+      '{'+
+        '"action": "getAirData",'+
+        '"location": "' + data[offset].County + '|' + data[offset].SiteName + '"'+
+      '}';
     output.template.actions.push(item);
   }
   if (count < data.length) {
-    output.template.actions.push({'type': 'postback', 'label': '其他測站...', 'data': '{"action":"nextSet", "offset":' + offset + ', "county":"' + data[0].County + '"}'});
+    let moreStation = {
+      'type': 'postback',
+      'label': '其他測站...',
+      'data': '{"action":"nextSet", "offset":' + offset + ', "county":"' + data[0].County + '"}'
+    };
+    output.template.actions.push(moreStation);
   }
   return output;
-}
+};
+
+const consoleLog = (type, message) => {
+  let log = '';
+
+  switch (type) {
+  case 'info':
+    log += chalk.blue('INFO ') + ' ' + message;
+    console.log(log);
+    break;
+  case 'error':
+    log =+ chalk.red('ERROR ⁉️ ') + ' '  + message;
+    console.error(log);
+    break;
+  case 'success':
+    log = chalk.green('YEAH🤘 ') + ' '  + message;
+    console.log(log);
+    break;
+  default:
+    console.log(log);
+    break;
+  }
+};
 
 const replyToEvent = (event, pushMessage) => {
   const deferred = q.defer();
@@ -233,29 +273,7 @@ const replyToEvent = (event, pushMessage) => {
     deferred.reject(new Error('Reply failed: ' + error));
   });
   return deferred.promise;
-}
-
-const consoleLog = (type, message) => {
-  let log = '';
-
-  switch (type) {
-  case 'info':
-    log += chalk.blue('INFO ') + ' ' + message;
-    console.log(log)
-    break;
-  case 'error':
-    log =+ chalk.red('ERROR ⁉️ ') + ' '  + message;
-    console.error(log);
-    break;
-  case 'success':
-    log = chalk.green('YEAH🤘 ') + ' '  + message;
-    console.log(log);
-    break;
-  default:
-    console.log(log);
-    break;
-  }
-}
+};
 
 app.use((req, res, next) => {
   res.setHeader('X-Powered-By', 'Electricity');
@@ -281,7 +299,7 @@ bot.on('postback', (event) => {
     .then((airData) => {
       let filteredData = [];
 
-      filteredData = _.remove(airData, (o) => {return o.County === county});
+      filteredData = _.remove(airData, (o) => {return o.County === county;});
       return airListMessageBuilder(filteredData, offset);
     })
     .then((output) => {
@@ -439,7 +457,10 @@ bot.on('message', (event) => {
             let weatherInfoMessage = '';
 
             weatherInfoMessage = weatherInfoMessageBuilder(weatherData);
-            weatherInfoMessage = weatherInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的天氣資訊' : weatherInfoMessage;
+            if (weatherInfoMessage === '') {
+              weatherInfoMessage = '目前沒有' + splitMessage[1] + '的天氣資訊';
+            }
+
             output.push({'type': 'text', 'text': weatherInfoMessage});
 
             airInfoMessage = airInfoMessageBuilder(_.remove(airData, (o) => {
@@ -453,7 +474,9 @@ bot.on('message', (event) => {
               }
               return o.SiteName === siteName;
             })[0]);
-            airInfoMessage = airInfoMessage === '' ? '目前沒有' + splitMessage[1] + '的空氣資訊' : airInfoMessage;
+            if (airInfoMessage === '') {
+              airInfoMessage = '目前沒有' + splitMessage[1] + '的空氣資訊';
+            }
             output.push({'type': 'text', 'text': airInfoMessage});
 
             replyToEvent(event, output);

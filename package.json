@@ -18,7 +18,9 @@
     "weather-taiwan": "^1.0.5"
   },
   "repository": "https://github.com/osk2/weather-bot",
-  "devDependencies": {},
+  "devDependencies": {
+    "jshint": "^2.9.4"
+  },
   "author": "osk2",
   "license": "UNLICENSED"
 }
