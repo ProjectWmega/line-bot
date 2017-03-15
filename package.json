@@ -4,7 +4,8 @@
   "description": "Get weather info from LINE.",
   "main": "index.js",
   "scripts": {
-    "start": "node ."
+    "start": "node .",
+    "lint": "jshint index.js"
   },
   "dependencies": {
     "chalk": "^1.1.3",
