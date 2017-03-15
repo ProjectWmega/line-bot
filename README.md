@@ -1,8 +1,8 @@
-#Weather Bot
+# Weather Bot
 
 Have fun with LINE!
 
-##Installation
+## Installation
 
 Make sure fill LINE Channel infomation, CWB token and cert path into [`config.js`](config.js) first
 
@@ -12,11 +12,11 @@ After all set, run:
 
 `$ npm install`
 
-##Starting
+## Starting
 
 `$ node .`
 
-##Data Source
+## Data Source
 
  - AQX data fecth from [opendata2.epa.gov.tw](http://opendata2.epa.gov.tw/AQX.json)
  - Weather data fetch from [Taiwan's Weather Maps!](https://github.com/comdan66/weather)
