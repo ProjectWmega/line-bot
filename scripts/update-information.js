@@ -1,3 +1,5 @@
+// Update AQX and weather information, save them into data/aqx.json and data/weather.json
+
 const _ = require('lodash');
 const fs = require('fs');
 const weatherTW = require('weather-taiwan');
