@@ -8,6 +8,8 @@ Make sure fill LINE Channel infomation, CWB token and cert path into [`config.js
 
 You can create free SSL at [SSL For Free](https://www.sslforfree.com) if you don't have it yet
 
+Create folder named `ssl`, then place certs into `ssl`
+
 After all set, run:
 
 `$ npm install`
