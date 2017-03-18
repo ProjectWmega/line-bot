@@ -284,6 +284,16 @@ app.set('port', (process.env.PORT || 5567));
 app.set('json spaces', 2);
 app.post('/', linebotParser);
 
+app.get('/data/:file', function (req, res) {
+  readJSON('data/' + req.params.file + '.json')
+  .then((data) => {
+    res.json(data);
+  })
+  .fail((error) => {
+    res.status(404).send({success: false, reason: 'An error occured while read file.', message: error});
+  })
+});
+
 bot.on('postback', (event) => {
   const source = event.source;
   const sourceType = source.type;
