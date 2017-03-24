@@ -24,7 +24,7 @@ It's recommended to add the script into crontab to run automatically
 
 Below is an example that run script every 15 mins
 
-`*/15  * * * *   osk2    /usr/bin/node /var/www/bot/script/update-information.js >> /var/www/bot/logs/update.log 2>&1`
+`*/15  * * * *   osk2    /usr/bin/node /var/www/bot/scripts/update-information.js >> /var/www/bot/logs/update.log 2>&1`
 
 ## Data Source
 
