@@ -3,7 +3,7 @@
 const _ = require('lodash');
 const fs = require('fs');
 const weatherTW = require('weather-taiwan');
-const config = require('./config');
+const config = require('../config');
 const unirest = require('unirest');
 
 const fetcher = weatherTW.fetch(config.cwb.token);
@@ -15,7 +15,7 @@ parser.on('data', function (station) {
 });
 
 parser.on('error', function (error) {
-  fs.appendFile('update.log', 'Error while updating weather: ' + error + '\n', function (err) {
+  fs.appendFile('../logs/update.log', 'Error while updating weather: ' + error + '\n', function (err) {
     if (err) {
       console.error('FS error: ' + err, new Date());
     }
@@ -39,7 +39,7 @@ fetcher.pipe(parser);
 unirest.get('http://opendata2.epa.gov.tw/AQX.json')
 .end(function (res) {
   if (!res.ok) {
-    fs.appendFile('update.log', 'Server retrun status code ' + res.code + '\n', function (err) {
+    fs.appendFile('../logs/update.log', 'Server retrun status code ' + res.code + '\n', function (err) {
       if (err) {
         console.error('FS error: ' + err, new Date());
       }
