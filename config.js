@@ -11,5 +11,6 @@ module.exports = {
   },
   cwb: {
     token: 'YOUR_CWB_TOKEN'
-  }
+  },
+  path: "ABSOLUTE_PATH_TO_THE_PROJECT"
 }

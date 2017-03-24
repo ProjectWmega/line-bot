@@ -3,6 +3,7 @@
 const fs = require('fs');
 const _ = require('lodash');
 const q = require('q');
+const config = require('../config')
 
 const readJSON = (path) => {
   const deferred = q.defer();
@@ -34,7 +35,7 @@ const appendJSON = (path, data) => {
   return deferred.promise;
 };
 
-q.spread([readJSON('data/aqx.json'), readJSON('data/town.json')], (sites, towns) => {
+q.spread([readJSON(config.path + '/data/aqx.json'), readJSON(config.path + '/data/town.json')], (sites, towns) => {
   let stations = [];
 
   _.each(towns, (town) => {
@@ -59,7 +60,7 @@ q.spread([readJSON('data/aqx.json'), readJSON('data/town.json')], (sites, towns)
     }
 
     stations.push(town);
-    appendJSON('../data/pm-site.json', stations);
+    appendJSON(config.path + '/data/pm-site.json', stations);
   });
 })
 .fail((err) => {

@@ -24,7 +24,7 @@ parser.on('error', function (error) {
 
 parser.on('finish', function () {
   stations = JSON.stringify(stations, null, 2);
-  fs.writeFile('/var/www/weather-bot/data/weather.json', stations, function (err) {
+  fs.writeFile(config.path + '/data/weather.json', stations, function (err) {
     if (err) {
       console.error('FS error: ' + err, new Date());
     } else {
@@ -39,13 +39,13 @@ fetcher.pipe(parser);
 unirest.get('http://opendata2.epa.gov.tw/AQX.json')
 .end(function (res) {
   if (!res.ok) {
-    fs.appendFile('../logs/update.log', 'Server retrun status code ' + res.code + '\n', function (err) {
+    fs.appendFile(config.path + '/logs/update.log', 'Server retrun status code ' + res.code + '\n', function (err) {
       if (err) {
         console.error('FS error: ' + err, new Date());
       }
     });
   } else {
-    fs.writeFile('/var/www/weather-bot/data/aqx.json', JSON.stringify(res.body), function (err) {
+    fs.writeFile(config.path + '/data/aqx.json', JSON.stringify(res.body), function (err) {
       if (err) {
         console.error('FS error: ' + err, new Date());
       } else {
