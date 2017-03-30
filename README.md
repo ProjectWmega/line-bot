@@ -1,5 +1,7 @@
 # Weather Bot
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/ProjectWmega/line-bot.svg)](https://greenkeeper.io/)
+
 Have fun with LINE!
 
 ## Installation
